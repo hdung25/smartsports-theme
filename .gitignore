@@ -1,0 +1,22 @@
+# Byte-compiled / optimized
+*.pyc
+__pycache__/
+
+# Local WordPress
+wp-config.php
+wp-config-local.php
+wp-content/database/
+wp-content/uploads/
+
+# XAMPP / LocalWP artifacts
+wordpress-latest.zip
+smartsport.zip
+wp-extracted/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

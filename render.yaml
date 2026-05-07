@@ -1,0 +1,14 @@
+# render.yaml — Render.com Service Configuration
+# Deploy: Connect GitHub repo → Render auto-reads this file
+
+services:
+  - type: web
+    name: smartsports-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: WORDPRESS_DEBUG
+        value: false
+    healthCheckPath: /
+    autoDeploy: true
