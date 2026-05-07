@@ -1,6 +1,6 @@
 FROM php:8.1-apache
 
-# ---- Step 1: Install system libraries ----
+# ---- System libraries ----
 RUN apt-get update \
     && apt-get install -y \
         libfreetype6-dev \
@@ -15,96 +15,54 @@ RUN apt-get update \
         less \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Step 2: Configure & install GD ----
+# ---- PHP extensions (all in one step) ----
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd
+    && docker-php-ext-install gd zip intl exif pdo pdo_sqlite
 
-# ---- Step 3: Install other PHP extensions ----
-RUN docker-php-ext-install zip intl exif
+# ---- Apache ----
+RUN a2enmod rewrite headers \
+    && sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
 
-# ---- Step 4: Install PDO + SQLite ----
-RUN docker-php-ext-install pdo pdo_sqlite
-
-# ---- Step 5: Enable Apache modules ----
-RUN a2enmod rewrite headers
-
-# ---- Step 6: PHP config ----
-RUN printf "upload_max_filesize=64M\npost_max_size=64M\nmemory_limit=256M\nmax_execution_time=120\nfile_uploads=On" \
+# ---- PHP config ----
+RUN printf "upload_max_filesize=64M\npost_max_size=64M\nmemory_limit=256M\nmax_execution_time=300\n" \
     > /usr/local/etc/php/conf.d/wordpress.ini
 
-# ---- Step 7: Apache allow .htaccess ----
-RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
-
-# ---- Step 8: Install WP-CLI ----
+# ---- WP-CLI ----
 RUN curl -o /usr/local/bin/wp \
     https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
     && chmod +x /usr/local/bin/wp
 
-# ---- Step 9: Download WordPress core ----
-RUN wp core download \
-    --path=/var/www/html \
-    --version=latest \
-    --allow-root \
-    --force
+# ---- WordPress core ----
+RUN wp core download --path=/var/www/html --allow-root --force
 
-# ---- Step 10: Install SQLite plugin ----
-RUN curl -L -o /tmp/sqlite-plugin.zip \
+# ---- SQLite Database Integration plugin ----
+RUN curl -L -o /tmp/sqlite.zip \
         "https://downloads.wordpress.org/plugin/sqlite-database-integration.zip" \
-    && unzip -o /tmp/sqlite-plugin.zip \
-        -d /var/www/html/wp-content/plugins/ \
-    && cp /var/www/html/wp-content/plugins/sqlite-database-integration/db.copy \
-        /var/www/html/wp-content/db.php \
-    && rm /tmp/sqlite-plugin.zip
+    && unzip -o /tmp/sqlite.zip -d /var/www/html/wp-content/plugins/ \
+    && rm /tmp/sqlite.zip
 
-# ---- Step 11: Create SQLite directory ----
-RUN mkdir -p /var/www/html/wp-content/database
+# ---- Create required directories ----
+RUN mkdir -p /var/www/html/wp-content/database \
+    && mkdir -p /var/www/html/wp-content/uploads
 
-# ---- Step 12: Copy theme ----
+# ---- Copy Smart Sports theme ----
 COPY . /var/www/html/wp-content/themes/smartsport/
 
-# ---- Step 13: Copy WP config ----
+# ---- Copy WordPress config ----
 COPY wp-config-render.php /var/www/html/wp-config.php
 
-# ---- Step 14: Create .htaccess ----
+# ---- .htaccess ----
 RUN printf '# BEGIN WordPress\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteBase /\nRewriteRule ^index\\.php$ - [L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.php [L]\n</IfModule>\n# END WordPress\n' \
     > /var/www/html/.htaccess
 
-# ---- Step 15: Set permissions ----
+# ---- Copy entrypoint script ----
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# ---- Permissions ----
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# ---- Step 16: Install WordPress via WP-CLI ----
-RUN wp core install \
-    --path=/var/www/html \
-    --url="https://smartsports-demo.onrender.com" \
-    --title="Smart Sports" \
-    --admin_user="admin" \
-    --admin_password="SmartSports2026!" \
-    --admin_email="hahuyd25@gmail.com" \
-    --skip-email \
-    --allow-root
-
-# ---- Step 17: Activate theme + set front page ----
-RUN wp theme activate smartsport --path=/var/www/html --allow-root
-
-RUN PAGE_ID=$(wp post create \
-        --path=/var/www/html \
-        --post_type=page \
-        --post_title="Home" \
-        --post_status=publish \
-        --porcelain \
-        --allow-root) \
-    && wp option update show_on_front page --path=/var/www/html --allow-root \
-    && wp option update page_on_front "$PAGE_ID" --path=/var/www/html --allow-root
-
-# ---- Step 18: Cleanup defaults ----
-RUN wp theme delete twentytwentythree twentytwentyfour \
-        --path=/var/www/html --allow-root 2>/dev/null || true
-RUN wp plugin delete hello akismet \
-        --path=/var/www/html --allow-root 2>/dev/null || true
-
-# ---- Step 19: Final permissions ----
-RUN chown -R www-data:www-data /var/www/html
-
 EXPOSE 80
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
