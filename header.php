@@ -23,7 +23,7 @@
     <!-- Top bar: Events / Blogs links -->
     <div class="header-top-bar">
         <div class="container" style="display:flex;justify-content:flex-end;align-items:center;">
-            <a href="#">Events</a>
+            <a href="https://abortivematch.s2-tastewp.com/index.php/events/">Events</a>
             <span class="separator">&nbsp;|&nbsp;</span>
             <a href="#">Blogs</a>
         </div>
